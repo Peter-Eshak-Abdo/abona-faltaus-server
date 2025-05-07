@@ -1,17 +1,13 @@
-import express from "express";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-import fs from "fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const express = require("express");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const httpServer = createServer(app);
 
-// Enable CORS for all routes
+// Enable CORS
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
@@ -19,15 +15,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Add a health check endpoint
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// const allowedOrigins = [
-//   "http://localhost:3000",
-//   "https://abona-faltaus.vercel.app",
-// ];
+// Serve static files if needed
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 const io = new Server(httpServer, {
   cors: {
@@ -41,26 +35,23 @@ const io = new Server(httpServer, {
   pingInterval: 25000,
 });
 
-// Store active rooms and their teams
 const rooms = new Map();
 
 io.on("connection", (socket) => {
   console.log("🔌 Client connected:", socket.id);
 
-  // Create a new room
   socket.on("create-room", ({ roomId }) => {
     rooms.set(roomId, {
       teams: [],
       admin: socket.id,
-      status: "waiting", // waiting, active, finished
-      questions: [], // Store questions for the room
+      status: "waiting",
+      questions: [],
       currentQuestionIndex: 0,
     });
     socket.join(roomId);
     console.log(`Room ${roomId} created by admin ${socket.id}`);
   });
 
-  // Join a room
   socket.on("join-room", ({ roomId, team, isAdmin }) => {
     const room = rooms.get(roomId);
 
@@ -73,7 +64,6 @@ io.on("connection", (socket) => {
       if (room.admin === socket.id) {
         socket.join(roomId);
         socket.emit("room-joined", { isAdmin: true });
-        // Send current question if exam has started
         if (room.status === "active" && room.questions.length > 0) {
           socket.emit("exam-started", {
             question: room.questions[room.currentQuestionIndex],
@@ -85,10 +75,8 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Check if team already exists by id (not socketId)
     const existingTeam = room.teams.find((t) => t.id === team.id);
     if (!existingTeam) {
-      // Add team to room
       room.teams.push({
         id: team.id,
         name: team.name,
@@ -100,7 +88,6 @@ io.on("connection", (socket) => {
       io.to(room.admin).emit("team-joined", team);
       console.log(`Team ${team.name} joined room ${roomId}`);
     } else {
-      // Team already exists, just update socket ID
       existingTeam.socketId = socket.id;
       socket.join(roomId);
       socket.emit("room-joined", { team: existingTeam });
@@ -108,45 +95,41 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Start exam
   socket.on("start-exam", ({ roomId, settings }) => {
     const room = rooms.get(roomId);
     if (room && room.admin === socket.id) {
       room.status = "active";
-      // Load questions from JSON file
-      const questionsData = JSON.parse(
-        fs.readFileSync(join(__dirname, "public/exam/simple.json"), "utf8")
-      );
+
+      const questionsPath = path.join(__dirname, "public", "exam", "simple.json");
+      const questionsData = JSON.parse(fs.readFileSync(questionsPath, "utf8"));
+
       let allQuestions = [];
       settings.categories.forEach((category) => {
-        const categoryData = questionsData.find(
-          (cat) => cat.category === category
-        );
+        const categoryData = questionsData.find((cat) => cat.category === category);
         if (categoryData) {
           allQuestions = allQuestions.concat(categoryData.questions);
         }
       });
+
       const shuffledQuestions = allQuestions
         .sort(() => Math.random() - 0.5)
         .slice(0, settings.questionCount);
+
       room.questions = shuffledQuestions;
       room.currentQuestionIndex = 0;
       room.timePerQuestion = settings.timePerQuestion;
-      // Send first question to all teams
+
       io.to(roomId).emit("exam-started", {
         question: room.questions[0],
         timePerQuestion: settings.timePerQuestion,
         totalQuestions: settings.questionCount,
       });
-      console.log(
-        `Exam started in room ${roomId} with ${room.teams.length} teams. Sent exam-started event to all in room.`
-      );
+
+      console.log(`Exam started in room ${roomId}`);
     }
   });
 
-  // Handle team leaving
   socket.on("disconnect", () => {
-    // Find and remove team from all rooms
     rooms.forEach((room, roomId) => {
       const teamIndex = room.teams.findIndex((t) => t.socketId === socket.id);
       if (teamIndex !== -1) {
@@ -158,7 +141,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Next question
   socket.on("next-question", ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room && room.admin === socket.id) {
@@ -167,7 +149,6 @@ io.on("connection", (socket) => {
         const question = room.questions[room.currentQuestionIndex];
         io.to(roomId).emit("question", question);
       } else {
-        // Exam finished
         room.status = "finished";
         io.to(roomId).emit("exam-finished", {
           teams: room.teams,
@@ -176,7 +157,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Submit answer
   socket.on("submit-answer", ({ roomId, questionId, answer }) => {
     const room = rooms.get(roomId);
     if (room) {
@@ -199,8 +179,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// httpServer.listen(3001, () => {console.log("🚀 Socket server running on port 3001");});
-
+// Listen on port
 const port = process.env.PORT || 3001;
 httpServer.listen(port, "0.0.0.0", () => {
   console.log(`🚀 Socket server running on port ${port}`);
