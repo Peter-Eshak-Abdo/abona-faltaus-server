@@ -25,7 +25,7 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "https://abona-faltaus.vercel.app"],
+    origin: ["http://localhost:3000", "https://abona-faltaus.vercel.app", "https://exam-group.glitch.me"],
     methods: ["GET", "POST"],
     credentials: true,
   },
