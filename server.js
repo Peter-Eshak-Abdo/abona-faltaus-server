@@ -77,22 +77,24 @@ io.on("connection", (socket) => {
 
     const existingTeam = room.teams.find((t) => t.id === team.id);
     if (!existingTeam) {
-      room.teams.push({
-        id: team.id,
-        name: team.name,
-        socketId: socket.id,
-        score: 0,
-      });
-      socket.join(roomId);
-      socket.emit("room-joined", { team });
-      io.to(room.admin).emit("team-joined", team);
-      console.log(`Team ${team.name} joined room ${roomId}`);
-    } else {
-      existingTeam.socketId = socket.id;
-      socket.join(roomId);
-      socket.emit("room-joined", { team: existingTeam });
-      console.log(`Team ${existingTeam.name} reconnected to room ${roomId}`);
-    }
+  room.teams.push({
+    id: team.id,
+    name: team.name,
+    socketId: socket.id,
+    score: 0,
+    memberCount: team.memberCount, // أضف هذا السطر
+    members: team.members || [],   // وأيضًا هذا السطر
+  });
+  socket.join(roomId);
+  socket.emit("room-joined", { team });
+  io.to(room.admin).emit("team-joined", team);
+  console.log(`Team ${team.name} joined room ${roomId}`);
+} else {
+  existingTeam.socketId = socket.id;
+  socket.join(roomId);
+  socket.emit("room-joined", { team: existingTeam });
+  console.log(`Team ${existingTeam.name} reconnected to room ${roomId}`);
+}
   });
 
   socket.on("start-exam", ({ roomId, settings }) => {
