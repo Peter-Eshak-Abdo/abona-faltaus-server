@@ -1,11 +1,19 @@
-const express = require("express");
-const { createServer } = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
-const fs = require("fs");
+//const express = require("express");
+import { createServer }  from "http";
+import { Server } from "socket.io";
+import path from "path";
+import fs from "fs";
+import express from "express";
+
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const app = express();
 const httpServer = createServer(app);
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Enable CORS
 app.use((req, res, next) => {
