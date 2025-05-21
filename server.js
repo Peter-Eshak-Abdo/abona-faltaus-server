@@ -199,11 +199,13 @@ io.on("connection", (socket) => {
 
     if (hasMore) {
       const question = room.questions[room.currentQuestionIndex];
-      io.to(roomId).emit("question", {
-        question,
-        index: room.currentQuestionIndex,
-        total: room.questions.length,
-      });
+      io.to(roomId).emit("question",room.questions[room.currentQuestionIndex]
+       //{
+       // question,
+       // index: room.currentQuestionIndex,
+       // total: room.questions.length,
+       // }
+      );
     } else {
       room.status = "finished";
       io.to(roomId).emit("exam-finished", {
