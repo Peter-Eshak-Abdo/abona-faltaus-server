@@ -161,6 +161,7 @@ io.on("connection", (socket) => {
       question: shuffled[0],
       timePerQuestion: settings.timePerQuestion,
       totalQuestions: settings.questionCount,
+      index: 0
     });
 
     console.log(`🚀 [START] Exam started in room ${roomId}`);
@@ -201,11 +202,11 @@ io.on("connection", (socket) => {
     if (hasMore) {
       const question = room.questions[room.currentQuestionIndex];
       io.to(roomId).emit("question", {
-  question,
-  index: room.currentQuestionIndex,
-  totalQuestions: room.questions.length,
-  timePerQuestion: room.timePerQuestion
-});
+        question,
+        index: room.currentQuestionIndex,
+        totalQuestions: room.questions.length,
+        timePerQuestion: room.timePerQuestion
+      });
        //{
        // question,
        // index: room.currentQuestionIndex,
