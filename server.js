@@ -60,6 +60,7 @@ io.on("connection", (socket) => {
     }
 
     rooms.set(roomId, {
+      adminId: socket.id,
       teams: [],
       admin: socket.id,
       status: "waiting",
@@ -81,10 +82,10 @@ io.on("connection", (socket) => {
     }
 
     if (isAdmin) {
-      if (room.admin === socket.id) {
+      if (room.adminId === socket.id) {
+        room.adminSocketId = socket.id;
         socket.join(roomId);
         socket.emit("room-joined", { isAdmin: true });
-
         if (room.status === "active" && room.questions.length > 0) {
           socket.emit("exam-started", {
             question: room.questions[room.currentQuestionIndex],
@@ -92,6 +93,9 @@ io.on("connection", (socket) => {
             totalQuestions: room.questions.length,
           });
         }
+        
+      } else {
+         socket.emit("room-error", "ليس لديك صلاحية المشرف");
       }
       return;
     }
