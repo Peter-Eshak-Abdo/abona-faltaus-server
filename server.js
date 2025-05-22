@@ -155,6 +155,7 @@ io.on("connection", (socket) => {
     room.currentQuestionIndex = 0;
     room.timePerQuestion = settings.timePerQuestion;
     room.status = "active";
+    io.to(room.admin).emit("teams-init", room.teams);
 
     io.to(roomId).emit("exam-started", {
       question: shuffled[0],
@@ -199,13 +200,17 @@ io.on("connection", (socket) => {
 
     if (hasMore) {
       const question = room.questions[room.currentQuestionIndex];
-      io.to(roomId).emit("question",room.questions[room.currentQuestionIndex]
+      io.to(roomId).emit("question", {
+  question,
+  index: room.currentQuestionIndex,
+  totalQuestions: room.questions.length,
+  timePerQuestion: room.timePerQuestion
+});
        //{
        // question,
        // index: room.currentQuestionIndex,
        // total: room.questions.length,
        // }
-      );
     } else {
       room.status = "finished";
       io.to(roomId).emit("exam-finished", {
