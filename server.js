@@ -92,6 +92,7 @@ io.on("connection", (socket) => {
             question: room.questions[room.currentQuestionIndex],
             timePerQuestion: room.timePerQuestion,
             totalQuestions: room.questions.length,
+            index : 0,
           });
         }
         
