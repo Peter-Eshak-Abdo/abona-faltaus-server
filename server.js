@@ -85,6 +85,7 @@ io.on("connection", (socket) => {
       if (room.adminId === socket.id) {
         room.adminSocketId = socket.id;
         socket.join(roomId);
+        socket.emit("teams-init", room.teams);
         socket.emit("room-joined", { isAdmin: true });
         if (room.status === "active" && room.questions.length > 0) {
           socket.emit("exam-started", {
