@@ -1,4 +1,3 @@
-// server.ts أو index.js حسب بيئة Glitch
 import { createServer } from "http";
 import { Server } from "socket.io";
 import path from "path";
