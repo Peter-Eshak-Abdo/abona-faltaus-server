@@ -53,10 +53,10 @@ io.on("connection", (socket) => {
   console.log("🔌 Client connected:", socket.id);
 
   // === Create Room ===
-  socket.on("create-room", ({ roomId }) => {
+  socket.on("create-room", ({ roomId }, cb) => {
     if (rooms.has(roomId)) {
       socket.emit("room-error", "الغرفة موجودة بالفعل");
-      return;
+      return cb({ success: false, error: "غرفة موجودة" });
     }
 
     rooms.set(roomId, {
@@ -70,6 +70,7 @@ io.on("connection", (socket) => {
 
     socket.join(roomId);
     console.log(`✅ [ROOM CREATED] ${roomId} by ${socket.id}`);
+    return cb({success: true});
   });
 
   // === Join Room ===
@@ -164,9 +165,9 @@ io.on("connection", (socket) => {
 
     io.to(roomId).emit("exam-started", {
       question: shuffled[0],
-      timePerQuestion: settings.timePerQuestion,
+      index: 0,
       totalQuestions: settings.questionCount,
-      index: 0
+      timePerQuestion: settings.timePerQuestion,
     });
 
     console.log(`🚀 [START] Exam started in room ${roomId}`);
