@@ -211,11 +211,6 @@ io.on("connection", (socket) => {
         totalQuestions: room.questions.length,
         timePerQuestion: room.timePerQuestion
       });
-       //{
-       // question,
-       // index: room.currentQuestionIndex,
-       // total: room.questions.length,
-       // }
     } else {
       room.status = "finished";
       io.to(roomId).emit("exam-finished", {
