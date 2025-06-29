@@ -183,8 +183,9 @@ io.on("connection", (socket) => {
 
     if (!question || !team) return;
 
-    const isCorrect = answer === question.correctAnswer;
-    //const isCorrect = submittedAnswer  === question.answer;
+    const submittedAnswerText = question.options?.[answer]; 
+    // const isCorrect = answer === question.correctAnswer;
+    const isCorrect = submittedAnswerText  === question.answer;
     if (isCorrect) {
       team.score += 1;
     }
@@ -221,6 +222,13 @@ io.on("connection", (socket) => {
       });
       console.log(`✅ [FINISH] Exam in room ${roomId}`);
     }
+  });
+  
+  socket.on("pause-exam", ({ roomId }) => {
+    io.to(roomId).emit("exam-paused");
+  });
+  socket.on("resume-exam", ({ roomId }) => {
+    io.to(roomId).emit("exam-resumed");
   });
 
   // === Handle Disconnect ===
