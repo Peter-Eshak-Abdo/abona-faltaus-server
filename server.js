@@ -75,7 +75,7 @@ io.on("connection", (socket) => {
   // === Join Room ===
   socket.on("join-room", ({ roomId, team, isAdmin }) => {
     const room = rooms.get(roomId);
-
+  
     if (!room) {
       socket.emit("room-error", "الغرفة غير موجودة");
       return;
@@ -184,6 +184,7 @@ io.on("connection", (socket) => {
     if (!question || !team) return;
 
     const isCorrect = answer === question.correctAnswer;
+    //const isCorrect = submittedAnswer  === question.answer;
     if (isCorrect) {
       team.score += 1;
     }
