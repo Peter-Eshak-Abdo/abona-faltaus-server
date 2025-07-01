@@ -157,22 +157,60 @@ io.on("connection", (socket) => {
 
     const shuffled = allQuestions.sort(() => Math.random() - 0.5).slice(0, settings.questionCount);
 
-    room.questions = shuffled;
+    room.questions = shuffled.map((q, index) => ({ ...q, id: index }));
     room.currentQuestionIndex = 0;
     room.timePerQuestion = settings.timePerQuestion;
+    room.remainingTime = settings.timePerQuestion;
+    room.qrSize = settings.defaultQrSize || 200; // px
+
     room.status = "active";
     io.to(room.admin).emit("teams-init", room.teams);
+    if (room.timerInterval) clearInterval(room.timerInterval);
+    room.timerInterval = setInterval(() => {
+    if (room.status !== "active") return;
+    room.remainingTime--;
 
-    io.to(roomId).emit("exam-started", {
-      question: shuffled[0],
-      index: 0,
-      totalQuestions: settings.questionCount,
-      timePerQuestion: settings.timePerQuestion,
+    // نبعت لكل الكلينتس التحديث
+    io.to(roomId).emit("time-update", {
+      remainingTime: room.remainingTime,
     });
+
+    // لو انتهى الوقت
+    if (room.remainingTime <= 0) {
+      clearInterval(room.timerInterval);
+      room.status = "waiting"; // أو 'paused' حتى يضغط الأدمن التالي
+      io.to(roomId).emit("time-ended");
+      io.to(room.admin).emit("time-ended-admin");
+    }
+  }, 1000);
+
+  // نبعث أول سؤال مع بيانات الوقت
+  io.to(roomId).emit("exam-started", {
+    question: room.questions[0],
+    index: 0,
+    totalQuestions: room.questions.length,
+    remainingTime: room.remainingTime,
+    qrSize: room.qrSize,
+  });
 
     console.log(`🚀 [START] Exam started in room ${roomId}`);
   });
 
+  // ==== PAUSE & RESUME ====
+socket.on("pause-exam", ({ roomId }) => {
+  const room = rooms.get(roomId);
+  if (!room || room.admin !== socket.id) return;
+  room.status = "paused";
+  io.to(roomId).emit("exam-paused");
+});
+
+socket.on("resume-exam", ({ roomId }) => {
+  const room = rooms.get(roomId);
+  if (!room || room.admin !== socket.id) return;
+  room.status = "active";
+  io.to(roomId).emit("exam-resumed");
+});
+  
   // === Submit Answer ===
   socket.on("submit-answer", ({ roomId, questionId, answer }) => {
     const room = rooms.get(roomId);
@@ -183,9 +221,7 @@ io.on("connection", (socket) => {
 
     if (!question || !team) return;
 
-    const submittedAnswerText = question.options?.[answer]; 
-    // const isCorrect = answer === question.correctAnswer;
-    const isCorrect = submittedAnswerText  === question.answer;
+    const isCorrect = answer === question.correctAnswer;
     if (isCorrect) {
       team.score += 1;
     }
@@ -204,18 +240,36 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room || room.admin !== socket.id) return;
 
+    clearInterval(room.timerInterval);
     room.currentQuestionIndex++;
     const hasMore = room.currentQuestionIndex < room.questions.length;
 
     if (hasMore) {
-      const question = room.questions[room.currentQuestionIndex];
+      room.remainingTime = room.timePerQuestion;
+      room.status = "active";
+      // restart timer
+    room.timerInterval = setInterval(() => {
+      if (room.status !== "active") return;
+      room.remainingTime--;
+      io.to(roomId).emit("time-update", { remainingTime: room.remainingTime });
+      if (room.remainingTime <= 0) {
+        clearInterval(room.timerInterval);
+        room.status = "waiting";
+        io.to(roomId).emit("time-ended");
+        io.to(room.admin).emit("time-ended-admin");
+      }
+    }, 1000);
+      
       io.to(roomId).emit("question", {
-        question,
+        question: room.questions[room.currentQuestionIndex],
         index: room.currentQuestionIndex,
         totalQuestions: room.questions.length,
-        timePerQuestion: room.timePerQuestion
+        timePerQuestion: room.timePerQuestion,
+        remainingTime: room.remainingTime,
+        qrSize: room.qrSize,
       });
     } else {
+      clearInterval(room.timerInterval);
       room.status = "finished";
       io.to(roomId).emit("exam-finished", {
         teams: room.teams,
@@ -231,6 +285,7 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("exam-resumed");
   });
 
+  
   // === Handle Disconnect ===
   socket.on("disconnect", () => {
     for (const [roomId, room] of rooms.entries()) {
