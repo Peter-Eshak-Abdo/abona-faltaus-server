@@ -5,6 +5,7 @@ import fs from "fs";
 import express from "express";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const httpServer = createServer(app);
@@ -75,12 +76,22 @@ io.on("connection", (socket) => {
   // === Join Room ===
   socket.on("join-room", ({ roomId, team, isAdmin }) => {
     const room = rooms.get(roomId);
-  
     if (!room) {
       socket.emit("room-error", "الغرفة غير موجودة");
       return;
     }
+// ممنوع الانضمام لو الاسم مكرر
+  if (room.teams.some(t => t.name === team)) {
+    socket.emit("join-error", "الاسم مستخدم بالفعل، اختار اسم تاني");
+    return;
+  }
+    // لو الامتحان بدأ خلاص، نبعت بيانات الحالة الحالية
+  const newTeam = { id: uuidv4(), name: team, socketId: socket.id, score: 0 };
+  room.teams.push(newTeam);
+  socket.join(roomId);
+  socket.emit("join-success", { team: newTeam });
 
+    
     if (isAdmin) {
       if (room.adminId === socket.id) {
         room.adminSocketId = socket.id;
@@ -95,7 +106,6 @@ io.on("connection", (socket) => {
             index : 0,
           });
         }
-        
       } else {
          socket.emit("room-error", "ليس لديك صلاحية المشرف");
       }
@@ -278,13 +288,13 @@ socket.on("resume-exam", ({ roomId }) => {
     }
   });
   
-  socket.on("pause-exam", ({ roomId }) => {
-    io.to(roomId).emit("exam-paused");
-  });
-  socket.on("resume-exam", ({ roomId }) => {
-    io.to(roomId).emit("exam-resumed");
-  });
-
+// ==== SLIDER تغيير حجم QR ====
+socket.on("set-qr-size", ({ roomId, size }) => {
+  const room = rooms.get(roomId);
+  if (!room || room.admin !== socket.id) return;
+  room.qrSize = size;
+  io.to(roomId).emit("qr-size-changed", { qrSize: room.qrSize });
+});
   
   // === Handle Disconnect ===
   socket.on("disconnect", () => {
