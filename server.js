@@ -80,16 +80,12 @@ io.on("connection", (socket) => {
       socket.emit("room-error", "الغرفة غير موجودة");
       return;
     }
-// ممنوع الانضمام لو الاسم مكرر
-  if (room.teams.some(t => t.name === team)) {
-    socket.emit("join-error", "الاسم مستخدم بالفعل، اختار اسم تاني");
-    return;
-  }
+
     // لو الامتحان بدأ خلاص، نبعت بيانات الحالة الحالية
-  const newTeam = { id: uuidv4(), name: team, socketId: socket.id, score: 0 };
-  room.teams.push(newTeam);
-  socket.join(roomId);
-  socket.emit("join-success", { team: newTeam });
+  // const newTeam = { id: uuidv4(), name: team, socketId: socket.id, score: 0 };
+  // room.teams.push(newTeam);
+  // socket.join(roomId);
+  // socket.emit("join-success", { team: newTeam });
 
     
     if (isAdmin) {
@@ -112,6 +108,12 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // ممنوع الانضمام لو الاسم مكرر
+  if (room.teams.some(t => t.name === team)) {
+    socket.emit("join-error", "الاسم مستخدم بالفعل، اختار اسم تاني");
+    return;
+  }
+    
     const existingTeam = room.teams.find((t) => t.id === team.id);
 
     if (!existingTeam) {
@@ -199,6 +201,7 @@ io.on("connection", (socket) => {
     question: room.questions[0],
     index: 0,
     totalQuestions: room.questions.length,
+   timePerQuestion: room.timePerQuestion,
     remainingTime: room.remainingTime,
     qrSize: room.qrSize,
   });
