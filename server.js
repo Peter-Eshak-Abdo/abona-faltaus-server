@@ -5,7 +5,6 @@ import fs from "fs";
 import express from "express";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,12 +13,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // === Middleware ===
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  next();
-});
+// app.use((req, res, next) => {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+//   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+//   next();
+// });
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://abona-faltaus.vercel.app",
+      "https://abona-faltaus.onrender.com",
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 
 // === Health Check ===
 app.get("/health", (req, res) => {
@@ -35,7 +45,8 @@ const io = new Server(httpServer, {
     origin: [
       "http://localhost:3000",
       "https://abona-faltaus.vercel.app",
-      "https://exam-group.glitch.me"
+      "https://abona-faltaus.onrender.com"
+      // "https://exam-group.glitch.me"
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -76,18 +87,12 @@ io.on("connection", (socket) => {
   // === Join Room ===
   socket.on("join-room", ({ roomId, team, isAdmin }) => {
     const room = rooms.get(roomId);
+
     if (!room) {
       socket.emit("room-error", "الغرفة غير موجودة");
       return;
     }
 
-    // لو الامتحان بدأ خلاص، نبعت بيانات الحالة الحالية
-  // const newTeam = { id: uuidv4(), name: team, socketId: socket.id, score: 0 };
-  // room.teams.push(newTeam);
-  // socket.join(roomId);
-  // socket.emit("join-success", { team: newTeam });
-
-    
     if (isAdmin) {
       if (room.adminId === socket.id) {
         room.adminSocketId = socket.id;
@@ -102,18 +107,13 @@ io.on("connection", (socket) => {
             index : 0,
           });
         }
+
       } else {
          socket.emit("room-error", "ليس لديك صلاحية المشرف");
       }
       return;
     }
 
-    // ممنوع الانضمام لو الاسم مكرر
-  if (room.teams.some(t => t.name === team)) {
-    socket.emit("join-error", "الاسم مستخدم بالفعل، اختار اسم تاني");
-    return;
-  }
-    
     const existingTeam = room.teams.find((t) => t.id === team.id);
 
     if (!existingTeam) {
@@ -172,58 +172,19 @@ io.on("connection", (socket) => {
     room.questions = shuffled.map((q, index) => ({ ...q, id: index }));
     room.currentQuestionIndex = 0;
     room.timePerQuestion = settings.timePerQuestion;
-    room.remainingTime = settings.timePerQuestion;
-    room.qrSize = settings.defaultQrSize || 200; // px
-
     room.status = "active";
     io.to(room.admin).emit("teams-init", room.teams);
-    if (room.timerInterval) clearInterval(room.timerInterval);
-    room.timerInterval = setInterval(() => {
-    if (room.status !== "active") return;
-    room.remainingTime--;
 
-    // نبعت لكل الكلينتس التحديث
-    io.to(roomId).emit("time-update", {
-      remainingTime: room.remainingTime,
+    io.to(roomId).emit("exam-started", {
+      question: shuffled[0],
+      index: 0,
+      totalQuestions: settings.questionCount,
+      timePerQuestion: settings.timePerQuestion,
     });
-
-    // لو انتهى الوقت
-    if (room.remainingTime <= 0) {
-      clearInterval(room.timerInterval);
-      room.status = "waiting"; // أو 'paused' حتى يضغط الأدمن التالي
-      io.to(roomId).emit("time-ended");
-      io.to(room.admin).emit("time-ended-admin");
-    }
-  }, 1000);
-
-  // نبعث أول سؤال مع بيانات الوقت
-  io.to(roomId).emit("exam-started", {
-    question: room.questions[0],
-    index: 0,
-    totalQuestions: room.questions.length,
-   timePerQuestion: room.timePerQuestion,
-    remainingTime: room.remainingTime,
-    qrSize: room.qrSize,
-  });
 
     console.log(`🚀 [START] Exam started in room ${roomId}`);
   });
 
-  // ==== PAUSE & RESUME ====
-socket.on("pause-exam", ({ roomId }) => {
-  const room = rooms.get(roomId);
-  if (!room || room.admin !== socket.id) return;
-  room.status = "paused";
-  io.to(roomId).emit("exam-paused");
-});
-
-socket.on("resume-exam", ({ roomId }) => {
-  const room = rooms.get(roomId);
-  if (!room || room.admin !== socket.id) return;
-  room.status = "active";
-  io.to(roomId).emit("exam-resumed");
-});
-  
   // === Submit Answer ===
   socket.on("submit-answer", ({ roomId, questionId, answer }) => {
     const room = rooms.get(roomId);
@@ -253,36 +214,18 @@ socket.on("resume-exam", ({ roomId }) => {
     const room = rooms.get(roomId);
     if (!room || room.admin !== socket.id) return;
 
-    clearInterval(room.timerInterval);
     room.currentQuestionIndex++;
     const hasMore = room.currentQuestionIndex < room.questions.length;
 
     if (hasMore) {
-      room.remainingTime = room.timePerQuestion;
-      room.status = "active";
-      // restart timer
-    room.timerInterval = setInterval(() => {
-      if (room.status !== "active") return;
-      room.remainingTime--;
-      io.to(roomId).emit("time-update", { remainingTime: room.remainingTime });
-      if (room.remainingTime <= 0) {
-        clearInterval(room.timerInterval);
-        room.status = "waiting";
-        io.to(roomId).emit("time-ended");
-        io.to(room.admin).emit("time-ended-admin");
-      }
-    }, 1000);
-      
+      const question = room.questions[room.currentQuestionIndex];
       io.to(roomId).emit("question", {
-        question: room.questions[room.currentQuestionIndex],
+        question,
         index: room.currentQuestionIndex,
         totalQuestions: room.questions.length,
-        timePerQuestion: room.timePerQuestion,
-        remainingTime: room.remainingTime,
-        qrSize: room.qrSize,
+        timePerQuestion: room.timePerQuestion
       });
     } else {
-      clearInterval(room.timerInterval);
       room.status = "finished";
       io.to(roomId).emit("exam-finished", {
         teams: room.teams,
@@ -290,15 +233,14 @@ socket.on("resume-exam", ({ roomId }) => {
       console.log(`✅ [FINISH] Exam in room ${roomId}`);
     }
   });
-  
-// ==== SLIDER تغيير حجم QR ====
-socket.on("set-qr-size", ({ roomId, size }) => {
-  const room = rooms.get(roomId);
-  if (!room || room.admin !== socket.id) return;
-  room.qrSize = size;
-  io.to(roomId).emit("qr-size-changed", { qrSize: room.qrSize });
-});
-  
+
+  socket.on("pause-exam", ({ roomId }) => {
+    io.to(roomId).emit("exam-paused");
+  });
+  socket.on("resume-exam", ({ roomId }) => {
+    io.to(roomId).emit("exam-resumed");
+  });
+
   // === Handle Disconnect ===
   socket.on("disconnect", () => {
     for (const [roomId, room] of rooms.entries()) {

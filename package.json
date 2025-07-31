@@ -1,17 +1,10 @@
 {
-  "name": "abona-faltaus",
-  "version": "2.7.2",
-  "private": true,
-  "type": "module",
+  "name": "abona-faltaus-server",
+  "version": "1.0.0",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "export": "next export",
-    "lint": "next lint",
-    "predeploy": "rd /s /q out",
-    "deploy": "npm run build && firebase deploy",
     "server": "nodemon server.js"
   },
   "engines": {
@@ -19,9 +12,10 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "nodemon": "^3.1.10",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
     "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }
